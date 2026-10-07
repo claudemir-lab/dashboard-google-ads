@@ -115,6 +115,7 @@ function main() {
         segments.date,
         campaign.name,
         campaign.advertising_channel_type,
+        campaign.status,
         metrics.cost_micros,
         metrics.conversions_value,
         metrics.all_conversions_value,
@@ -131,10 +132,12 @@ function main() {
     let campaignValSum = 0;
     let campaignAllValSum = 0;
     let campaignCostSum = 0;
+    const campaignInfo = new Set();
 
     while (campaignReport.hasNext()) {
       const row = campaignReport.next();
       const campaignName = row.campaign.name || 'Sem Nome';
+      campaignInfo.add(campaignName + ' [' + (row.campaign.advertisingChannelType || '?') + ']');
 
       // Se a campanha já teve seus custos detalhados por produto, não duplicamos linha de 'Geral'
       if (campaignsWithProducts.has(campaignName)) {
@@ -169,6 +172,7 @@ function main() {
                ' | Custo R$ ' + campaignCostSum.toFixed(2) +
                ' | conversions_value R$ ' + campaignValSum.toFixed(2) +
                ' | all_conversions_value R$ ' + campaignAllValSum.toFixed(2));
+    Logger.log('Campanhas encontradas na conta: ' + (Array.from(campaignInfo).join(' || ') || 'nenhuma'));
   } catch (e) {
     Logger.log('Erro ao consultar relatório de campanhas: ' + (e.message || e));
   }
