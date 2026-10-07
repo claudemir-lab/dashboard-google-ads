@@ -53,6 +53,7 @@ function main() {
       SELECT
         segments.date,
         campaign.name,
+        campaign.status,
         segments.product_title,
         metrics.cost_micros,
         metrics.conversions_value,
