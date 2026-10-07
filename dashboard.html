@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="pt-BR" translate="no">
 <head>
 <meta charset="UTF-8">
@@ -203,7 +203,7 @@ function build(rows) {
     { label:"CPC médio", value:fmtBRL(cpc), sub:"" },
     { label:"CTR", value:ctr.toFixed(2)+"%", sub:"" },
     { label:"Impressões", value:fmtInt(imp), sub:"" },
-    { label:"Vendas (conversões Ads)", value:fmtInt(ven), sub:"" },
+    { label:"Conversões", value:fmtInt(ven), sub:"" },
     ...(prodRows.length ? [{ label:"Unidades vendidas", value:fmtInt(venProd), sub:"" }] : [])
   ];
 
