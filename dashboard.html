@@ -165,6 +165,7 @@ function build(rows) {
   const imp = sum(campRows, r=>r.impressoes);
   const car = sum(campRows, r=>r.itens_no_carrinho);
   const ven = sum(campRows, r=>r.quantidade_vendida);
+  const venProd = sum(prodRows, r=>r.quantidade_vendida);
   const roas = inv > 0 ? fat / inv : 0;
   const roi = inv > 0 ? ((fat - inv)/inv)*100 : 0;
   const ctr = imp > 0 ? (cli/imp)*100 : 0;
@@ -195,13 +196,14 @@ function build(rows) {
   const kpis = [
     { label:"Investimento", value:fmtBRL(inv), sub:"total no período" },
     { label: prodRows.length ? "Faturamento (Campanha)" : "Faturamento", value:fmtBRL(fat), sub:"valor de conversão pago" },
-    ...(prodRows.length ? [{ label:"Faturamento (Produtos)", value:fmtBRL(fatProd), sub:"relatório de Produtos / listagens" }] : []),
+    ...(prodRows.length ? [{ label:"Faturamento (Produtos)", value:fmtBRL(fatProd), sub:"itens do carrinho vendidos" }] : []),
     { label:"ROAS", value:roas.toFixed(2)+"x", sub:"faturamento ÷ investimento", cls: roas>=1?"up":"down" },
     { label:"ROI", value:roi.toFixed(0)+"%", sub:"retorno %", cls: roi>=0?"up":"down" },
     { label:"Cliques", value:fmtInt(cli), sub:"CTR "+ctr.toFixed(2)+"%" },
     { label:"CPC médio", value:fmtBRL(cpc), sub:"custo por clique" },
     { label:"Impressões", value:fmtInt(imp), sub:"total" },
-    { label:"Vendas", value:fmtInt(ven), sub:fmtInt(car)+" carrinhos" }
+    { label:"Vendas (conversões Ads)", value:fmtInt(ven), sub:fmtInt(car)+" carrinhos" },
+    ...(prodRows.length ? [{ label:"Unidades vendidas", value:fmtInt(venProd), sub:"itens do carrinho" }] : [])
   ];
 
   document.getElementById("content").innerHTML =
@@ -217,7 +219,7 @@ function build(rows) {
     '</div>' +
 
     '<div class="table-wrap">' +
-      '<table><thead><tr><th>Data</th><th>Campanha</th><th>Invest.</th><th>Fat.</th><th>ROAS</th><th>ROI</th><th>Cliques</th><th>Impr.</th><th>Vendas</th></tr></thead><tbody>' +
+      '<table><thead><tr><th>Data</th><th>Campanha</th><th>Invest.</th><th>Fat.</th><th>ROAS</th><th>ROI</th><th>Cliques</th><th>Impr.</th><th>Conversões</th></tr></thead><tbody>' +
       [...campRows].reverse().map(r =>
         '<tr><td>'+fmtDate(r.data)+'</td><td>'+r.nome_campanha+'</td>'+
         '<td>'+fmtBRL(Number(r.investimento))+'</td><td>'+fmtBRL(Number(r.faturamento))+'</td>'+
