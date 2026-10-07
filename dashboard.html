@@ -194,16 +194,17 @@ function build(rows) {
   const impr = daysIso.map(d => byDay[d].imp);
 
   const kpis = [
-    { label:"Investimento", value:fmtBRL(inv), sub:"total no período" },
-    { label: prodRows.length ? "Faturamento (Campanha)" : "Faturamento", value:fmtBRL(fat), sub:"valor de conversão pago" },
-    ...(prodRows.length ? [{ label:"Faturamento (Produtos)", value:fmtBRL(fatProd), sub:"itens do carrinho vendidos" }] : []),
-    { label:"ROAS", value:roas.toFixed(2)+"x", sub:"faturamento ÷ investimento", cls: roas>=1?"up":"down" },
-    { label:"ROI", value:roi.toFixed(0)+"%", sub:"retorno %", cls: roi>=0?"up":"down" },
-    { label:"Cliques", value:fmtInt(cli), sub:"CTR "+ctr.toFixed(2)+"%" },
-    { label:"CPC médio", value:fmtBRL(cpc), sub:"custo por clique" },
-    { label:"Impressões", value:fmtInt(imp), sub:"total" },
-    { label:"Vendas (conversões Ads)", value:fmtInt(ven), sub:fmtInt(car)+" carrinhos" },
-    ...(prodRows.length ? [{ label:"Unidades vendidas", value:fmtInt(venProd), sub:"itens do carrinho" }] : [])
+    { label:"Investimento", value:fmtBRL(inv), sub:"" },
+    { label: prodRows.length ? "Faturamento (Campanha)" : "Faturamento", value:fmtBRL(fat), sub:"" },
+    ...(prodRows.length ? [{ label:"Faturamento (Produtos)", value:fmtBRL(fatProd), sub:"" }] : []),
+    { label:"ROAS", value:roas.toFixed(2)+"x", sub:"", cls: roas>=1?"up":"down" },
+    { label:"ROI", value:roi.toFixed(0)+"%", sub:"", cls: roi>=0?"up":"down" },
+    { label:"Cliques", value:fmtInt(cli), sub:"" },
+    { label:"CPC médio", value:fmtBRL(cpc), sub:"" },
+    { label:"CTR", value:ctr.toFixed(2)+"%", sub:"" },
+    { label:"Impressões", value:fmtInt(imp), sub:"" },
+    { label:"Vendas (conversões Ads)", value:fmtInt(ven), sub:"" },
+    ...(prodRows.length ? [{ label:"Unidades vendidas", value:fmtInt(venProd), sub:"" }] : [])
   ];
 
   document.getElementById("content").innerHTML =
@@ -228,7 +229,7 @@ function build(rows) {
       ).join("") +
       '</tbody></table>' +
       '<div class="totals">'+
-        '<div><b>Período:</b> '+days[0]+' a '+days[days.length-1]+' &nbsp;·&nbsp; <b>'+daysIso.length+'</b> dias &nbsp;·&nbsp; <b>'+fmtBRL(inv)+'</b> investido &nbsp;·&nbsp; campanha <b>'+fmtBRL(fat)+'</b>'+(prodRows.length ? ' &nbsp;·&nbsp; produtos <b>'+fmtBRL(fatProd)+'</b>' : '')+' &nbsp;·&nbsp; <b>'+roas.toFixed(2)+'x</b> ROAS médio</div>'+
+        '<div><b>Período:</b> '+days[0]+' a '+days[days.length-1]+' &nbsp;·&nbsp; <b>'+daysIso.length+'</b> dias &nbsp;·&nbsp; <b>'+fmtBRL(inv)+'</b> investido &nbsp;·&nbsp; campanha <b>'+fmtBRL(fat)+'</...(prodRows.length ? ' &nbsp;·&nbsp; produtos <b>'+fmtBRL(fatProd)+'</b>' : '')+' &nbsp;·&nbsp; <b>'+roas.toFixed(2)+'x</b> ROAS médio</div>'+
       '</div>' +
     '</div>';
 
@@ -236,7 +237,7 @@ function build(rows) {
     { label:"Investimento", data:invest, color:"#6c5ce7", fill:true },
     { label:"Faturamento", data:fatura, color:"#2ecc71", fill:true }
   ];
-  if (prodRows.length > 0) trendSeries.push({ label:"Faturamento (Produtos)", data:faturaProd, color:"#f1c40f", fill:false });
+ ...(prodRows.length > 0) trendSeries.push({ label:"Faturamento (Produtos)", data:faturaProd, color:"#f1c40f", fill:false });
   makeChart("chTrend", days, trendSeries);
   makeChart("chRoas", days, [
     { label:"ROAS", data:roasArr, color:"#f39c12", fill:false, step:true }
