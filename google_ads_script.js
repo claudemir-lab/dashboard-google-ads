@@ -47,7 +47,7 @@ function main() {
   const campaignsWithProducts = new Set();
 
   // 1. Extração de produtos (Campanhas de Shopping / Performance Max com feed de produtos)
-  Logger.log('1/2. Buscando métricas por produto (shopping_performance_view)...');
+  Logger.log('1/3. Buscando métricas por produto (shopping_performance_view)...');
   try {
     const shoppingQuery = `
       SELECT
@@ -107,8 +107,84 @@ function main() {
     Logger.log('Aviso ao consultar shopping_performance_view: ' + (e.message || e));
   }
 
-  // 2. Extração a nível de Campanha (Para campanhas de Pesquisa, Display, Vídeo ou contas sem feed)
-  Logger.log('2/2. Buscando métricas a nível de campanha (campaign)...');
+  // 2. PRODUTOS VENDIDOS (cart data) — mesma fonte do relatório
+  //    "Resumo da performance > Produtos: itens do carrinho vendidos".
+  //    IMPORTANTE: NÃO adiciona a campanha em campaignsWithProducts, para não
+  //    perder a linha "Geral / Campanha" que carrega o INVESTIMENTO (custo).
+  Logger.log('2/3. Buscando produtos vendidos (cart_data_sales_view)...');
+  try {
+    const cartQuery = `
+      SELECT
+        segments.date,
+        campaign.name,
+        segments.product_sold_title,
+        segments.product_sold_item_id,
+        metrics.units_sold,
+        metrics.revenue_micros
+      FROM cart_data_sales_view
+      WHERE ${dateClause}
+    `;
+
+    const cartReport = AdsApp.search(cartQuery);
+    const cartAgg = {};
+
+    while (cartReport.hasNext()) {
+      const row = cartReport.next();
+      const campaignName = row.campaign.name || 'Sem Nome';
+      const produtoVendido = row.segments.productSoldTitle
+        ? row.segments.productSoldTitle.trim()
+        : 'Produto sem título';
+      const receita = row.metrics.revenueMicros ? Number(row.metrics.revenueMicros) / 1000000 : 0;
+      const unidades = row.metrics.unitsSold ? Number(row.metrics.unitsSold) : 0;
+
+      // Agrega por data + campanha + produto: a chave única do Supabase é
+      // (data, nome_campanha, produto_nome) e vender 2x no mesmo dia não pode
+      // sobrescrever a primeira venda.
+      const chave = row.segments.date + '|' + campaignName + '|' + produtoVendido;
+      if (!cartAgg[chave]) {
+        cartAgg[chave] = {
+          data: row.segments.date,
+          nome_campanha: campaignName,
+          produto_nome: produtoVendido,
+          receita: 0,
+          unidades: 0
+        };
+      }
+      cartAgg[chave].receita += receita;
+      cartAgg[chave].unidades += unidades;
+    }
+
+    let cartCount = 0;
+    let cartRevenueSum = 0;
+    let cartUnitsSum = 0;
+    for (const chave of Object.keys(cartAgg)) {
+      const a = cartAgg[chave];
+      if (a.receita <= 0 && a.unidades <= 0) continue;
+      cartRevenueSum += a.receita;
+      cartUnitsSum += a.unidades;
+
+      records.push({
+        data: a.data,
+        nome_campanha: a.nome_campanha,
+        produto_nome: a.produto_nome,
+        investimento: 0,
+        faturamento: Number(a.receita.toFixed(2)),
+        cliques: 0,
+        impressoes: 0,
+        itens_no_carrinho: 0,
+        quantidade_vendida: a.unidades
+      });
+      cartCount++;
+    }
+    Logger.log('Produtos vendidos capturados: ' + cartCount +
+               ' | unidades ' + cartUnitsSum +
+               ' | receita R$ ' + cartRevenueSum.toFixed(2));
+  } catch (e) {
+    Logger.log('Erro ao consultar cart_data_sales_view: ' + (e.message || e));
+  }
+
+  // 3. Extração a nível de Campanha (Para campanhas de Pesquisa, Display, Vídeo ou contas sem feed)
+  Logger.log('3/3. Buscando métricas a nível de campanha (campaign)...');
   try {
     const campaignQuery = `
       SELECT
@@ -177,7 +253,7 @@ function main() {
     Logger.log('Erro ao consultar relatório de campanhas: ' + (e.message || e));
   }
 
-  // 3. Envio em lotes para o Supabase com Upsert
+  // 4. Envio em lotes para o Supabase com Upsert
   Logger.log('Total consolidado de linhas para envio: ' + records.length);
   if (records.length === 0) {
     Logger.log('Nenhum dado encontrado no período selecionado.');

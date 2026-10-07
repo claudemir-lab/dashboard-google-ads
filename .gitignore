@@ -3,6 +3,15 @@ AJUSTES.md
 
 # Ambiente
 .env
+
+# Chaves de service account (NUNCA publicar a chave privada)
+merchant-key.json
+*.key.json
+service-account*.json
+neurosaber-merchant*.json
+merchant-*.json
+gserviceaccount*.json
+
 node_modules/
 __pycache__/
 *.pyc
