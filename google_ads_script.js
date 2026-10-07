@@ -56,6 +56,7 @@ function main() {
         segments.product_title,
         metrics.cost_micros,
         metrics.conversions_value,
+        metrics.all_conversions_value,
         metrics.clicks,
         metrics.impressions,
         metrics.conversions
@@ -66,11 +67,15 @@ function main() {
 
     const shoppingReport = AdsApp.search(shoppingQuery);
     let shoppingCount = 0;
+    let shoppingValSum = 0;
+    let shoppingAllValSum = 0;
 
     while (shoppingReport.hasNext()) {
       const row = shoppingReport.next();
       const campaignName = row.campaign.name || 'Sem Nome';
       campaignsWithProducts.add(campaignName);
+      shoppingValSum += Number(row.metrics.conversionsValue || 0);
+      shoppingAllValSum += Number(row.metrics.allConversionsValue || 0);
 
       const investimento = row.metrics.costMicros ? Number((row.metrics.costMicros / 1000000).toFixed(2)) : 0.00;
       const faturamento = row.metrics.conversionsValue ? Number(row.metrics.conversionsValue.toFixed(2)) : 0.00;
@@ -94,7 +99,9 @@ function main() {
       });
       shoppingCount++;
     }
-    Logger.log('Total de registros de produtos capturados: ' + shoppingCount);
+    Logger.log('Total de registros de produtos capturados: ' + shoppingCount +
+               ' | conversions_value R$ ' + shoppingValSum.toFixed(2) +
+               ' | all_conversions_value R$ ' + shoppingAllValSum.toFixed(2));
   } catch (e) {
     Logger.log('Aviso ao consultar shopping_performance_view: ' + (e.message || e));
   }
@@ -109,6 +116,7 @@ function main() {
         campaign.advertising_channel_type,
         metrics.cost_micros,
         metrics.conversions_value,
+        metrics.all_conversions_value,
         metrics.clicks,
         metrics.impressions,
         metrics.conversions
@@ -119,6 +127,9 @@ function main() {
 
     const campaignReport = AdsApp.search(campaignQuery);
     let campaignCount = 0;
+    let campaignValSum = 0;
+    let campaignAllValSum = 0;
+    let campaignCostSum = 0;
 
     while (campaignReport.hasNext()) {
       const row = campaignReport.next();
@@ -128,6 +139,10 @@ function main() {
       if (campaignsWithProducts.has(campaignName)) {
         continue;
       }
+
+      campaignValSum += Number(row.metrics.conversionsValue || 0);
+      campaignAllValSum += Number(row.metrics.allConversionsValue || 0);
+      campaignCostSum += Number(row.metrics.costMicros || 0) / 1000000;
 
       const investimento = row.metrics.costMicros ? Number((row.metrics.costMicros / 1000000).toFixed(2)) : 0.00;
       const faturamento = row.metrics.conversionsValue ? Number(row.metrics.conversionsValue.toFixed(2)) : 0.00;
@@ -149,7 +164,10 @@ function main() {
       });
       campaignCount++;
     }
-    Logger.log('Registros adicionais de campanhas gerais: ' + campaignCount);
+    Logger.log('Registros adicionais de campanhas gerais: ' + campaignCount +
+               ' | Custo R$ ' + campaignCostSum.toFixed(2) +
+               ' | conversions_value R$ ' + campaignValSum.toFixed(2) +
+               ' | all_conversions_value R$ ' + campaignAllValSum.toFixed(2));
   } catch (e) {
     Logger.log('Erro ao consultar relatório de campanhas: ' + (e.message || e));
   }
