@@ -229,7 +229,7 @@ function build(rows) {
       ).join("") +
       '</tbody></table>' +
       '<div class="totals">'+
-        '<div><b>Período:</b> '+days[0]+' a '+days[days.length-1]+' &nbsp;·&nbsp; <b>'+daysIso.length+'</b> dias &nbsp;·&nbsp; <b>'+fmtBRL(inv)+'</b> investido &nbsp;·&nbsp; campanha <b>'+fmtBRL(fat)+'</...(prodRows.length ? ' &nbsp;·&nbsp; produtos <b>'+fmtBRL(fatProd)+'</b>' : '')+' &nbsp;·&nbsp; <b>'+roas.toFixed(2)+'x</b> ROAS médio</div>'+
+        '<div><b>Período:</b> '+days[0]+' a '+days[days.length-1]+' &nbsp;·&nbsp; <b>'+daysIso.length+'</b> dias &nbsp;·&nbsp; <b>'+fmtBRL(inv)+'</b> investido &nbsp;·&nbsp; campanha <b>'+fmtBRL(fat)+'</b>'+(prodRows.length ? ' &nbsp;·&nbsp; produtos <b>'+fmtBRL(fatProd)+'</b>' : '')+' &nbsp;·&nbsp; <b>'+roas.toFixed(2)+'x</b> ROAS médio</div>'+
       '</div>' +
     '</div>';
 
@@ -237,7 +237,7 @@ function build(rows) {
     { label:"Investimento", data:invest, color:"#6c5ce7", fill:true },
     { label:"Faturamento", data:fatura, color:"#2ecc71", fill:true }
   ];
- ...(prodRows.length > 0) trendSeries.push({ label:"Faturamento (Produtos)", data:faturaProd, color:"#f1c40f", fill:false });
+ if (prodRows.length > 0) trendSeries.push({ label:"Faturamento (Produtos)", data:faturaProd, color:"#f1c40f", fill:false });
   makeChart("chTrend", days, trendSeries);
   makeChart("chRoas", days, [
     { label:"ROAS", data:roasArr, color:"#f39c12", fill:false, step:true }
