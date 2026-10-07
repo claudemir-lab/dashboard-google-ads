@@ -1,0 +1,8 @@
+# Nunca publicar (contém chaves/notas internas do projeto)
+AJUSTES.md
+
+# Ambiente
+.env
+node_modules/
+__pycache__/
+*.pyc
