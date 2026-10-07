@@ -88,8 +88,13 @@
   </div>
   <div class="controls">
     <select id="period">
+      <option value="today">Hoje</option>
+      <option value="yesterday">Ontem</option>
       <option value="7">Últimos 7 dias</option>
+      <option value="14">Últimos 14 dias</option>
       <option value="30">Últimos 30 dias</option>
+      <option value="this-month">Este mês</option>
+      <option value="last-month">Mês passado</option>
       <option value="90" selected>Últimos 90 dias</option>
       <option value="all">Todo o período</option>
     </select>
@@ -123,11 +128,28 @@ async function fetchRows() {
   return res.json();
 }
 
-function filter(rows, days) {
-  if (days === "all") return rows;
-  const limit = new Date();
-  limit.setDate(limit.getDate() - (parseInt(days,10) - 1));
-  return rows.filter(r => new Date(r.data + "T00:00:00") >= limit);
+function filter(rows, period) {
+  if (period === "all") return rows;
+  const today = new Date(); today.setHours(0,0,0,0);
+  let start, end = today;
+  if (period === "today") {
+    start = new Date(today);
+  } else if (period === "yesterday") {
+    start = new Date(today); start.setDate(start.getDate() - 1);
+    end = new Date(start);
+  } else if (period === "this-month") {
+    start = new Date(today.getFullYear(), today.getMonth(), 1);
+  } else if (period === "last-month") {
+    start = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+    end = new Date(today.getFullYear(), today.getMonth(), 0);
+  } else {
+    const n = parseInt(period, 10);
+    start = new Date(today); start.setDate(start.getDate() - (n - 1));
+  }
+  return rows.filter(r => {
+    const rd = new Date(r.data + "T00:00:00");
+    return rd >= start && rd <= end;
+  });
 }
 
 function build(rows) {
@@ -175,7 +197,7 @@ function build(rows) {
       ).join("") +
       '</tbody></table>' +
       '<div class="totals">'+
-        '<div><b>'+rows.length+'</b> dias &nbsp;·&nbsp; <b>'+fmtBRL(inv)+'</b> investido &nbsp;·&nbsp; <b>'+fmtBRL(fat)+'</b> faturado &nbsp;·&nbsp; <b>'+roas.toFixed(2)+'x</b> ROAS médio</div>'+
+        '<div><b>Período:</b> '+fmtDate(rows[0].data)+' a '+fmtDate(rows[rows.length-1].data)+' &nbsp;·&nbsp; <b>'+rows.length+'</b> dias &nbsp;·&nbsp; <b>'+fmtBRL(inv)+'</b> investido &nbsp;·&nbsp; <b>'+fmtBRL(fat)+'</b> faturado &nbsp;·&nbsp; <b>'+roas.toFixed(2)+'x</b> ROAS médio</div>'+
       '</div>' +
     '</div>';
 
@@ -240,6 +262,11 @@ async function loadData() {
       return;
     }
     const rows = filter(all, document.getElementById("period").value);
+    if (rows.length === 0) {
+      el.className = "loader";
+      el.textContent = "Nenhum registro no período selecionado.";
+      return;
+    }
     build(rows);
   } catch (e) {
     el.className = "loader";
