@@ -61,6 +61,8 @@
     border-radius:12px; padding:16px;
   }
   .chart-card h3 { font-size:14px; margin-bottom:12px; color:var(--muted); }
+  .chart-box { position:relative; height:260px; }
+  .chart-card.wide .chart-box { height:220px; }
   .chart-card.wide { grid-column: 1 / -1; }
   .table-wrap {
     background:var(--card); border:1px solid var(--border);
@@ -157,9 +159,9 @@ function build(rows) {
     ).join("") + '</div>' +
 
     '<div class="charts">' +
-      '<div class="chart-card"><h3>Investimento x Faturamento (por dia)</h3><canvas id="chTrend"></canvas></div>' +
-      '<div class="chart-card"><h3>ROAS por dia</h3><canvas id="chRoas"></canvas></div>' +
-      '<div class="chart-card wide"><h3>Cliques e impressões (por dia)</h3><canvas id="chTraffic"></canvas></div>' +
+      '<div class="chart-card"><h3>Investimento x Faturamento (por dia)</h3><div class="chart-box"><canvas id="chTrend"></canvas></div></div>' +
+      '<div class="chart-card"><h3>ROAS por dia</h3><div class="chart-box"><canvas id="chRoas"></canvas></div></div>' +
+      '<div class="chart-card wide"><h3>Cliques e impressões (por dia)</h3><div class="chart-box"><canvas id="chTraffic"></canvas></div></div>' +
     '</div>' +
 
     '<div class="table-wrap">' +
