@@ -153,20 +153,49 @@ function filter(rows, period) {
 }
 
 function build(rows) {
-  const inv = rows.reduce((s,r)=>s+Number(r.investimento||0),0);
-  const fat = rows.reduce((s,r)=>s+Number(r.faturamento||0),0);
-  const cli = rows.reduce((s,r)=>s+Number(r.cliques||0),0);
-  const imp = rows.reduce((s,r)=>s+Number(r.impressoes||0),0);
-  const car = rows.reduce((s,r)=>s+Number(r.itens_no_carrinho||0),0);
-  const ven = rows.reduce((s,r)=>s+Number(r.quantidade_vendida||0),0);
+  const isCamp = r => r.produto_nome === "Geral / Campanha";
+  const campRows = rows.filter(isCamp);
+  const prodRows = rows.filter(r => !isCamp(r));
+  const sum = (arr, f) => arr.reduce((s,r)=>s+Number(f(r)||0),0);
+
+  const inv = sum(campRows, r=>r.investimento);
+  const fat = sum(campRows, r=>r.faturamento);
+  const fatProd = sum(prodRows, r=>r.faturamento);
+  const cli = sum(campRows, r=>r.cliques);
+  const imp = sum(campRows, r=>r.impressoes);
+  const car = sum(campRows, r=>r.itens_no_carrinho);
+  const ven = sum(campRows, r=>r.quantidade_vendida);
   const roas = inv > 0 ? fat / inv : 0;
   const roi = inv > 0 ? ((fat - inv)/inv)*100 : 0;
   const ctr = imp > 0 ? (cli/imp)*100 : 0;
   const cpc = cli > 0 ? inv/cli : 0;
 
+  const byDay = {};
+  rows.forEach(r => {
+    const d = r.data;
+    if (!byDay[d]) byDay[d] = { inv:0, fat:0, fatProd:0, cli:0, imp:0 };
+    if (isCamp(r)) {
+      byDay[d].inv += Number(r.investimento||0);
+      byDay[d].fat += Number(r.faturamento||0);
+      byDay[d].cli += Number(r.cliques||0);
+      byDay[d].imp += Number(r.impressoes||0);
+    } else {
+      byDay[d].fatProd += Number(r.faturamento||0);
+    }
+  });
+  const daysIso = Object.keys(byDay).sort();
+  const days = daysIso.map(fmtDate);
+  const invest = daysIso.map(d => byDay[d].inv);
+  const fatura = daysIso.map(d => byDay[d].fat);
+  const faturaProd = daysIso.map(d => byDay[d].fatProd);
+  const roasArr = daysIso.map(d => byDay[d].inv > 0 ? byDay[d].fat / byDay[d].inv : 0);
+  const cliques = daysIso.map(d => byDay[d].cli);
+  const impr = daysIso.map(d => byDay[d].imp);
+
   const kpis = [
     { label:"Investimento", value:fmtBRL(inv), sub:"total no período" },
-    { label:"Faturamento", value:fmtBRL(fat), sub:"valores de conversão" },
+    { label:"Faturamento (Campanha)", value:fmtBRL(fat), sub:"valor de conversão pago" },
+    { label:"Faturamento (Produtos)", value:fmtBRL(fatProd), sub:"relatório de Produtos / listagens" },
     { label:"ROAS", value:roas.toFixed(2)+"x", sub:"faturamento ÷ investimento", cls: roas>=1?"up":"down" },
     { label:"ROI", value:roi.toFixed(0)+"%", sub:"retorno %", cls: roi>=0?"up":"down" },
     { label:"Cliques", value:fmtInt(cli), sub:"CTR "+ctr.toFixed(2)+"%" },
@@ -189,7 +218,7 @@ function build(rows) {
 
     '<div class="table-wrap">' +
       '<table><thead><tr><th>Data</th><th>Campanha</th><th>Invest.</th><th>Fat.</th><th>ROAS</th><th>ROI</th><th>Cliques</th><th>Impr.</th><th>Vendas</th></tr></thead><tbody>' +
-      [...rows].reverse().map(r =>
+      [...campRows].reverse().map(r =>
         '<tr><td>'+fmtDate(r.data)+'</td><td>'+r.nome_campanha+'</td>'+
         '<td>'+fmtBRL(Number(r.investimento))+'</td><td>'+fmtBRL(Number(r.faturamento))+'</td>'+
         '<td>'+Number(r.roas).toFixed(2)+'x</td><td>'+Number(r.roi).toFixed(0)+'%</td>'+
@@ -197,20 +226,14 @@ function build(rows) {
       ).join("") +
       '</tbody></table>' +
       '<div class="totals">'+
-        '<div><b>Período:</b> '+fmtDate(rows[0].data)+' a '+fmtDate(rows[rows.length-1].data)+' &nbsp;·&nbsp; <b>'+rows.length+'</b> dias &nbsp;·&nbsp; <b>'+fmtBRL(inv)+'</b> investido &nbsp;·&nbsp; <b>'+fmtBRL(fat)+'</b> faturado &nbsp;·&nbsp; <b>'+roas.toFixed(2)+'x</b> ROAS médio</div>'+
+        '<div><b>Período:</b> '+days[0]+' a '+days[days.length-1]+' &nbsp;·&nbsp; <b>'+daysIso.length+'</b> dias &nbsp;·&nbsp; <b>'+fmtBRL(inv)+'</b> investido &nbsp;·&nbsp; campanha <b>'+fmtBRL(fat)+'</b> &nbsp;·&nbsp; produtos <b>'+fmtBRL(fatProd)+'</b> &nbsp;·&nbsp; <b>'+roas.toFixed(2)+'x</b> ROAS médio</div>'+
       '</div>' +
     '</div>';
 
-  const days = rows.map(r => fmtDate(r.data));
-  const invest = rows.map(r => r.investimento);
-  const fatura = rows.map(r => r.faturamento);
-  const roasArr = rows.map(r => r.roas);
-  const cliques = rows.map(r => r.cliques);
-  const impr = rows.map(r => r.impressoes);
-
   makeChart("chTrend", days, [
     { label:"Investimento", data:invest, color:"#6c5ce7", fill:true },
-    { label:"Faturamento", data:fatura, color:"#2ecc71", fill:true }
+    { label:"Faturamento (Campanha)", data:fatura, color:"#2ecc71", fill:true },
+    { label:"Faturamento (Produtos)", data:faturaProd, color:"#f1c40f", fill:false }
   ]);
   makeChart("chRoas", days, [
     { label:"ROAS", data:roasArr, color:"#f39c12", fill:false, step:true }

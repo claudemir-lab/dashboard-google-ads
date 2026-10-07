@@ -87,7 +87,28 @@ foreach ($row in $csvData) {
     $convProp = $props | Where-Object { $_.Name -match "Converses|Conversions|Vendas" } | Select-Object -First 1
     $prodProp = $props | Where-Object { $_.Name -match "Produto|Product|Ttulo" } | Select-Object -First 1
 
-    if (-not $campanhaProp) { continue }
+    if (-not $campanhaProp) {
+        # Relatorio de Produtos (listagens gratuitas / feed) -> sem coluna de Campanha
+        if ($prodProp -and $faturamentoProp) {
+            $produto = if ($prodProp.Value) { $prodProp.Value.Trim() } else { "" }
+            if (-not $produto -or $produto -match "Total:") { continue }
+            $receita = Clean-Number $faturamentoProp.Value
+            $dataVal = if ($dataProp) { Format-Date $dataProp.Value } else { (Get-Date -Format "yyyy-MM-dd") }
+            $unid = if ($convProp) { [int](Clean-Number $convProp.Value) } else { 0 }
+            $records += @{
+                data = $dataVal
+                nome_campanha = "Produtos / Listagens"
+                produto_nome = $produto
+                investimento = 0.0
+                faturamento = $receita
+                cliques = 0
+                impressoes = 0
+                itens_no_carrinho = 0
+                quantidade_vendida = $unid
+            }
+        }
+        continue
+    }
     $campName = $campanhaProp.Value
     if (-not $campName -or $campName -match "Total:") { continue }
 
@@ -152,4 +173,4 @@ for ($b = 0; $b -lt $records.Count; $b += $batchSize) {
 }
 
 Write-Host "`n>>> SUCESSO! Todos os dados foram importados para o Supabase!" -ForegroundColor Green
-Write-Host "Abra agora https://visual-twin-lens.lovable.app/dashboard para conferir seu painel!" -ForegroundColor Cyan
+Write-Host "Abra agora https://claudemir-lab.github.io/dashboard-google-ads/ para conferir seu painel!" -ForegroundColor Cyan
