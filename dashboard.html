@@ -77,6 +77,13 @@
   .totals { display:flex; gap:24px; flex-wrap:wrap; padding:14px; color:var(--muted); font-size:12px; }
   .totals b { color:var(--text); }
   .loader { text-align:center; padding:60px; color:var(--muted); }
+  .section-title {
+    font-size:15px; font-weight:600; color:var(--text);
+    text-transform:uppercase; letter-spacing:.8px;
+    margin:26px 0 12px; padding-bottom:8px;
+    border-bottom:1px solid var(--border);
+  }
+  .section-title small { color:var(--muted); font-weight:400; text-transform:none; letter-spacing:0; margin-left:8px; }
   @media (max-width: 900px) { .charts { grid-template-columns: 1fr; } }
 </style>
 </head>
@@ -128,6 +135,29 @@ async function fetchRows() {
   return res.json();
 }
 
+async function fetchShopify() {
+  const url = SUPABASE_URL + "/rest/v1/shopify_daily?select=data,pedidos,faturamento,clientes_novos,pedidos_canal_google,faturamento_canal_google,ticket_medio&order=data.asc";
+  const res = await fetch(url, {
+    headers: {
+      apikey: API_KEY,
+      Authorization: "Bearer " + API_KEY,
+      Accept: "application/json"
+    }
+  });
+  if (!res.ok) throw new Error("HTTP " + res.status + " — " + await res.text());
+  return res.json();
+}
+
+function cards(list) {
+  return '<div class="grid">' + list.map(k => {
+    const accent = k.c || (k.cls === "up" ? "#2ecc71" : "#e74c3c");
+    const valStyle = k.c ? ' style="color:'+k.c+'"' : '';
+    return '<div class="kpi" style="border-left:3px solid '+accent+'">'+
+      '<div class="label">'+k.label+'</div>'+
+      '<div class="value'+(k.cls ? " "+k.cls : "")+'"'+valStyle+'>'+k.value+'</div></div>';
+  }).join("") + '</div>';
+}
+
 function filter(rows, period) {
   if (period === "all") return rows;
   const today = new Date(); today.setHours(0,0,0,0);
@@ -152,7 +182,8 @@ function filter(rows, period) {
   });
 }
 
-function build(rows) {
+function build(rows, shopRows) {
+  shopRows = shopRows || [];
   const isCamp = r => r.produto_nome === "Geral / Campanha";
   const campRows = rows.filter(isCamp);
   const prodRows = rows.filter(r => !isCamp(r));
@@ -162,7 +193,6 @@ function build(rows) {
   const fat = sum(campRows, r=>r.faturamento);
   const cli = sum(campRows, r=>r.cliques);
   const imp = sum(campRows, r=>r.impressoes);
-  const car = sum(campRows, r=>r.itens_no_carrinho);
   const ven = sum(campRows, r=>r.quantidade_vendida);
   const venProd = sum(prodRows, r=>r.quantidade_vendida);
   const roas = inv > 0 ? fat / inv : 0;
@@ -173,21 +203,39 @@ function build(rows) {
   const byDay = {};
   rows.forEach(r => {
     const d = r.data;
-    if (!byDay[d]) byDay[d] = { inv:0, fat:0, cli:0, imp:0 };
+    if (!byDay[d]) byDay[d] = { inv:0, fat:0, cli:0, imp:0, conv:0 };
     if (isCamp(r)) {
       byDay[d].inv += Number(r.investimento||0);
       byDay[d].fat += Number(r.faturamento||0);
       byDay[d].cli += Number(r.cliques||0);
       byDay[d].imp += Number(r.impressoes||0);
+      byDay[d].conv += Number(r.quantidade_vendida||0);
     }
   });
-  const daysIso = Object.keys(byDay).sort();
+
+  const shopByDay = {};
+  shopRows.forEach(r => { shopByDay[r.data] = r; });
+
+  const daysIso = Array.from(new Set([...Object.keys(byDay), ...Object.keys(shopByDay)])).sort();
   const days = daysIso.map(fmtDate);
-  const invest = daysIso.map(d => byDay[d].inv);
-  const fatura = daysIso.map(d => byDay[d].fat);
-  const roasArr = daysIso.map(d => byDay[d].inv > 0 ? byDay[d].fat / byDay[d].inv : 0);
-  const cliques = daysIso.map(d => byDay[d].cli);
-  const impr = daysIso.map(d => byDay[d].imp);
+  const invest = daysIso.map(d => (byDay[d] ? byDay[d].inv : 0));
+  const fatura = daysIso.map(d => (byDay[d] ? byDay[d].fat : 0));
+  const roasArr = daysIso.map(d => (byDay[d] && byDay[d].inv > 0) ? byDay[d].fat / byDay[d].inv : 0);
+  const cliques = daysIso.map(d => (byDay[d] ? byDay[d].cli : 0));
+  const impr = daysIso.map(d => (byDay[d] ? byDay[d].imp : 0));
+  const fatShopArr = daysIso.map(d => Number(shopByDay[d] ? shopByDay[d].faturamento : 0));
+
+  const sSum = (f) => shopRows.reduce((s,r)=>s+Number(f(r)||0),0);
+  const sPedidos = sSum(r=>r.pedidos);
+  const sFat = sSum(r=>r.faturamento);
+  const sNovos = sSum(r=>r.clientes_novos);
+  const sGooglePed = sSum(r=>r.pedidos_canal_google);
+  const sGoogleFat = sSum(r=>r.faturamento_canal_google);
+  const sTicket = sPedidos > 0 ? sFat / sPedidos : 0;
+  const roasReal = inv > 0 ? sGoogleFat / inv : 0;
+  const cacReal = sGooglePed > 0 ? inv / sGooglePed : 0;
+  const divergencia = fat > 0 ? ((sGoogleFat - fat) / fat) * 100 : 0;
+  const hasShopify = shopRows.length > 0;
 
   const kpis = [
     { label:"Investimento", value:fmtBRL(inv), c:"#6c5ce7" },
@@ -202,21 +250,65 @@ function build(rows) {
     { label:"CPC médio", value:fmtBRL(cpc), c:"#e74c3c" }
   ];
 
-  document.getElementById("content").innerHTML =
-    '<div class="grid">' + kpis.map(k => {
-      const accent = k.c || (k.cls === "up" ? "#2ecc71" : "#e74c3c");
-      const valStyle = k.c ? ' style="color:'+k.c+'"' : '';
-      return '<div class="kpi" style="border-left:3px solid '+accent+'">'+
-        '<div class="label">'+k.label+'</div>'+
-        '<div class="value'+(k.cls ? " "+k.cls : "")+'"'+valStyle+'>'+k.value+'</div></div>';
-    }).join("") + '</div>' +
+  const shopKpis = [
+    { label:"Receita Shopify (real)", value:fmtBRL(sFat), c:"#2ecc71" },
+    { label:"Pedidos Shopify", value:fmtInt(sPedidos), c:"#3498db" },
+    { label:"Ticket médio", value:fmtBRL(sTicket), c:"#1abc9c" },
+    { label:"Clientes novos", value:fmtInt(sNovos), c:"#00b894" },
+    { label:"Receita origem Google", value:fmtBRL(sGoogleFat), c:"#6c5ce7" },
+    { label:"ROAS real (Google)", value:roasReal.toFixed(2)+"x", cls: roasReal>=1?"up":"down" },
+    { label:"CAC real (Google)", value:fmtBRL(cacReal), c:"#e84393" },
+    { label:"Divergência Ads×Shopify", value:(divergencia>=0?"+":"")+divergencia.toFixed(0)+"%", cls: Math.abs(divergencia)<10?"up":"down" }
+  ];
 
+  const crossRows = daysIso.slice().reverse().map(d => {
+    const c = byDay[d] || { inv:0, fat:0, conv:0 };
+    const s = shopByDay[d] || { pedidos:0, faturamento:0, pedidos_canal_google:0, faturamento_canal_google:0 };
+    const fatG = Number(s.faturamento_canal_google || 0);
+    const div = c.fat > 0 ? ((fatG - c.fat) / c.fat) * 100 : null;
+    return { d, inv:c.inv, conv:c.conv, fatAds:c.fat, ped:s.pedidos, fatShop:s.faturamento, pedG:s.pedidos_canal_google, fatG, div };
+  });
+
+  document.getElementById("content").innerHTML =
+    '<div class="section-title">Google Ads <small>estimativa do Google</small></div>' +
+    cards(kpis) +
+
+    (hasShopify ?
+      '<div class="section-title">Shopify × Google Ads <small>caixa real da loja</small></div>' +
+      cards(shopKpis) +
+      '<div class="table-wrap">' +
+        '<table><thead><tr>' +
+          '<th>Data</th><th>Invest. Ads</th><th>Conv. Ads</th><th>Receita Ads</th>' +
+          '<th>Pedidos</th><th>Receita Shopify</th><th>Origem Google</th><th>Diverg.</th>' +
+        '</tr></thead><tbody>' +
+        crossRows.map(r =>
+          '<tr><td>'+fmtDate(r.d)+'</td>' +
+          '<td>'+fmtBRL(r.inv)+'</td>' +
+          '<td>'+fmtInt(r.conv)+'</td>' +
+          '<td>'+fmtBRL(r.fatAds)+'</td>' +
+          '<td>'+fmtInt(r.ped)+'</td>' +
+          '<td>'+fmtBRL(Number(r.fatShop))+'</td>' +
+          '<td>'+fmtBRL(r.fatG)+'</td>' +
+          '<td>'+(r.div===null ? '—' : (r.div>=0?'+':'')+r.div.toFixed(0)+'%')+'</td></tr>'
+        ).join("") +
+        '</tbody></table>' +
+        '<div class="totals"><div>' +
+          '<b>Shopify real:</b> '+fmtBRL(sFat)+' em '+fmtInt(sPedidos)+' pedidos &nbsp;·&nbsp; ' +
+          '<b>Origem Google:</b> '+fmtBRL(sGoogleFat)+' ('+fmtInt(sGooglePed)+' pedidos) &nbsp;·&nbsp; ' +
+          '<b>Ads diz:</b> '+fmtBRL(fat)+' &nbsp;·&nbsp; ' +
+          '<b>Divergência:</b> '+(divergencia>=0?'+':'')+divergencia.toFixed(0)+'%' +
+        '</div></div>' +
+      '</div>'
+      : '') +
+
+    '<div class="section-title">Evolução diária</div>' +
     '<div class="charts">' +
-      '<div class="chart-card"><h3>Investimento x Faturamento (por dia)</h3><div class="chart-box"><canvas id="chTrend"></canvas></div></div>' +
+      '<div class="chart-card"><h3>Investimento x Faturamento x Receita Shopify (por dia)</h3><div class="chart-box"><canvas id="chTrend"></canvas></div></div>' +
       '<div class="chart-card"><h3>ROAS por dia</h3><div class="chart-box"><canvas id="chRoas"></canvas></div></div>' +
       '<div class="chart-card wide"><h3>Cliques e impressões (por dia)</h3><div class="chart-box"><canvas id="chTraffic"></canvas></div></div>' +
     '</div>' +
 
+    '<div class="section-title">Detalhe por campanha</div>' +
     '<div class="table-wrap">' +
       '<table><thead><tr><th>Data</th><th>Campanha</th><th>Invest.</th><th>Fat.</th><th>ROAS</th><th>ROI</th><th>Cliques</th><th>Impr.</th><th>Conversões</th></tr></thead><tbody>' +
       [...campRows].reverse().map(r =>
@@ -233,8 +325,9 @@ function build(rows) {
 
   const trendSeries = [
     { label:"Investimento", data:invest, color:"#6c5ce7", fill:true },
-    { label:"Faturamento", data:fatura, color:"#2ecc71", fill:true }
+    { label:"Faturamento (Google Ads)", data:fatura, color:"#2ecc71", fill:true }
   ];
+  if (hasShopify) trendSeries.push({ label:"Receita Shopify (real)", data:fatShopArr, color:"#f1c40f", fill:false });
   makeChart("chTrend", days, trendSeries);
   makeChart("chRoas", days, [
     { label:"ROAS", data:roasArr, color:"#f39c12", fill:false, step:true }
@@ -279,19 +372,18 @@ async function loadData() {
   el.className = "loader";
   el.textContent = "Carregando dados...";
   try {
-    const all = await fetchRows();
-    if (all.length === 0) {
-      el.className = "loader";
-      el.textContent = "Nenhum registro encontrado no Supabase.";
-      return;
-    }
-    const rows = filter(all, document.getElementById("period").value);
-    if (rows.length === 0) {
+    const results = await Promise.all([fetchRows(), fetchShopify()]);
+    const all = results[0];
+    const allShop = results[1];
+    const period = document.getElementById("period").value;
+    const rows = filter(all, period);
+    const shopRows = filter(allShop, period);
+    if (rows.length === 0 && shopRows.length === 0) {
       el.className = "loader";
       el.textContent = "Nenhum registro no período selecionado.";
       return;
     }
-    build(rows);
+    build(rows, shopRows);
   } catch (e) {
     el.className = "loader";
     el.textContent = "Erro ao carregar: " + e.message;
