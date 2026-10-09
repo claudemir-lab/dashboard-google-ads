@@ -11,7 +11,8 @@
  *   1. Rode o SQL de supabase_shopify_schema.sql no Supabase (1x).
  *   2. Crie o arquivo .env nesta pasta com:
  *        SHOPIFY_STORE=sualoja.myshopify.com
- *        SHOPIFY_TOKEN=shpat_xxx            (token Admin API, escopo read_orders)
+ *        SHOPIFY_CLIENT_ID=xxxx             (Client ID do app Dev Dashboard)
+ *        SHOPIFY_CLIENT_SECRET=shpss_xxx    (Client secret do app)
  *        SUPABASE_URL=https://xxx.supabase.co
  *        SUPABASE_KEY=sb_publishable_xxx    (ou service_role)
  *        SHOPIFY_TZ=America/Sao_Paulo
@@ -20,12 +21,10 @@
  *   4. Gravando no Supabase:  node shopify_daily_sync.js
  *
  * TOKEN (fluxo novo Shopify 2026):
- *   - Crie o app em https://dev.shopify.com (Dev Dashboard)
- *   - Escopos minimos: read_orders
- *   - Gere o token na aba "API credentials" (aparece 1 vez - copie na hora)
- *     ou troque client_id/secret por token:
- *     POST https://sualoja.myshopify.com/admin/oauth/access_token
- *     body: { client_id, client_secret, grant_type: "client_credentials" }
+ *   O script troca CLIENT_ID + CLIENT_SECRET por um access token automaticamente
+ *   (grant_type=client_credentials). O token dura 24h e e renovado a cada execucao.
+ *   Credenciais: Dev Dashboard -> seu app -> Settings -> Client ID / Secret.
+ *   Escopos necessarios: read_orders (read_products e read_customers opcionais).
  * ============================================================================== */
 
 const fs = require('fs');
@@ -45,7 +44,8 @@ const path = require('path');
 
 const CFG = {
   store: process.env.SHOPIFY_STORE || '',
-  token: process.env.SHOPIFY_TOKEN || '',
+  clientId: process.env.SHOPIFY_CLIENT_ID || '',
+  clientSecret: process.env.SHOPIFY_CLIENT_SECRET || '',
   supabaseUrl: process.env.SUPABASE_URL || 'https://bbitajwmcapohixocavn.supabase.co',
   supabaseKey: process.env.SUPABASE_KEY || 'sb_publishable_fNQDTEEbDQvMBbK8M4Dqeg_j-5QF2sS',
   tz: process.env.SHOPIFY_TZ || 'America/Sao_Paulo',
@@ -61,7 +61,30 @@ function fail(msg) {
 }
 
 if (!CFG.store) fail('Defina SHOPIFY_STORE no .env (ex: minhaloja.myshopify.com)');
-if (!CFG.token) fail('Defina SHOPIFY_TOKEN no .env');
+if (!CFG.clientId || !CFG.clientSecret) {
+  fail('Defina SHOPIFY_CLIENT_ID e SHOPIFY_CLIENT_SECRET no .env');
+}
+
+// ---------------------------------------------------------------------------
+// Token: troca client_id/client_secret por access token (client_credentials).
+// O token expira em 24h; renovamos automaticamente a cada execucao.
+// ---------------------------------------------------------------------------
+async function getAccessToken() {
+  const res = await fetch('https://' + CFG.store + '/admin/oauth/access_token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'client_credentials',
+      client_id: CFG.clientId,
+      client_secret: CFG.clientSecret
+    })
+  });
+  const json = await res.json();
+  if (!res.ok || !json.access_token) {
+    fail('Falha ao obter token Shopify: ' + JSON.stringify(json));
+  }
+  return json.access_token;
+}
 if (DRY_RUN === false && !process.env.SUPABASE_KEY && !process.env.SUPABASE_URL) {
   console.log('AVISO: usando Supabase padrao do projeto.');
 }
@@ -89,8 +112,11 @@ query Pedidos($first: Int!, $after: String, $q: String) {
         cancelledAt
         totalPriceSet { shopMoney { amount currencyCode } }
         customer { createdAt }
-        attribution { handle displayName }
-        sourceName
+        customerJourneySummary {
+          ready
+          firstVisit { source landingPage utmParameters { source medium campaign } }
+          lastVisit  { source landingPage utmParameters { source medium campaign } }
+        }
       }
     }
     pageInfo { hasNextPage endCursor }
@@ -103,6 +129,7 @@ async function fetchOrders() {
   const q = 'created_at:>=' + sinceStr;
   const url = 'https://' + CFG.store + '/admin/api/' + CFG.apiVersion + '/graphql.json';
 
+  const token = await getAccessToken();
   const all = [];
   let after = null;
   let page = 0;
@@ -112,7 +139,7 @@ async function fetchOrders() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Shopify-Access-Token': CFG.token
+        'X-Shopify-Access-Token': token
       },
       body: JSON.stringify({ query: QUERY, variables: { first: 50, after, q } })
     });
@@ -137,13 +164,29 @@ async function fetchOrders() {
 }
 
 // ---------------------------------------------------------------------------
-// Agrega por dia
+// Origem do trafego (marketing) a partir do customerJourneySummary.
+// Regra: usa a ultima visita; se for direta/sem fonte, cai na primeira.
 // ---------------------------------------------------------------------------
+function origemTrafego(order) {
+  const j = order.customerJourneySummary;
+  if (!j || !j.ready) return 'Desconhecido';
+  const last = j.lastVisit, first = j.firstVisit;
+  const fonte = (last && last.source) || (first && first.source) || '';
+  const utm = (last && last.utmParameters && last.utmParameters.source) ||
+              (first && first.utmParameters && first.utmParameters.source) || '';
+  const blob = (fonte + ' ' + utm).toLowerCase();
+
+  if (blob.includes('google') || blob.includes('gclid')) return 'Google';
+  if (blob.includes('instagram')) return 'Instagram';
+  if (blob.includes('facebook') || blob.includes('fb')) return 'Facebook';
+  if (blob.includes('tiktok')) return 'TikTok';
+  if (blob.includes('youtube')) return 'YouTube';
+  if (!fonte || fonte.toLowerCase() === 'direct') return 'Direto';
+  return 'Outros';
+}
+
 function isGoogle(order) {
-  const a = order.attribution || {};
-  const blob = [a.handle, a.displayName, order.sourceName]
-    .filter(Boolean).join(' ').toLowerCase();
-  return blob.includes('google') || blob.includes('youtube');
+  return origemTrafego(order) === 'Google';
 }
 
 function aggregate(orders) {
