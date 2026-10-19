@@ -1,0 +1,31 @@
+name: Supabase Keep-Alive
+
+# Mantém o projeto Supabase ativo para evitar pausa automatica do plano Free.
+# O Supabase pausa projetos sem atividade por ~7 dias; este ping diario conta como atividade.
+on:
+  schedule:
+    # Todos os dias as 12:00 UTC (09:00 America/Sao_Paulo)
+    - cron: '0 12 * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase REST API
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          set -e
+          URL="${SUPABASE_URL%/}/rest/v1/gads_dashboard?select=data&limit=1"
+          code=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
+            "$URL")
+          echo "HTTP ${code}"
+          if [ "$code" != "200" ]; then
+            echo "::warning::Ping retornou HTTP ${code}. O projeto pode estar pausado ou a chave incorreta."
+            exit 1
+          fi
+          echo "Supabase ativo."
