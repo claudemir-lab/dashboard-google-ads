@@ -1,17 +1,30 @@
 name: Supabase Keep-Alive
 
-# Mantém o projeto Supabase ativo para evitar pausa automatica do plano Free.
-# O Supabase pausa projetos sem atividade por ~7 dias; este ping diario conta como atividade.
+# Mantem o projeto Supabase ativo (evita a pausa automatica do plano Free) e
+# tambem renova o temporizador do GitHub, que desativa workflows agendados
+# apos 60 dias sem atividade no repositorio.
 on:
   schedule:
     # Todos os dias as 12:00 UTC (09:00 America/Sao_Paulo)
     - cron: '0 12 * * *'
   workflow_dispatch:
 
+permissions:
+  actions: write   # permite reativar o proprio workflow (reset dos 60 dias)
+  contents: read
+
 jobs:
-  ping:
+  keepalive:
     runs-on: ubuntu-latest
     steps:
+      - name: Renovar agendamento (evita desativacao em 60 dias)
+        if: ${{ github.event_name == 'schedule' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api -X PUT "repos/${{ github.repository }}/actions/workflows/keepalive.yml/enable"
+          echo "Agendamento renovado."
+
       - name: Ping Supabase REST API
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
