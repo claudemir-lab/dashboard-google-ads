@@ -17,15 +17,14 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
         run: |
-          set -e
           URL="${SUPABASE_URL%/}/rest/v1/gads_dashboard?select=data&limit=1"
-          code=$(curl -s -o /dev/null -w "%{http_code}" \
+          code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 \
             -H "apikey: ${SUPABASE_ANON_KEY}" \
             -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
-            "$URL")
+            "$URL" || echo "000")
           echo "HTTP ${code}"
           if [ "$code" != "200" ]; then
-            echo "::warning::Ping retornou HTTP ${code}. O projeto pode estar pausado ou a chave incorreta."
+            echo "::warning::Ping retornou HTTP ${code}. O projeto pode estar pausado (SQL/DNS indisponivel) ou a chave incorreta."
             exit 1
           fi
           echo "Supabase ativo."
