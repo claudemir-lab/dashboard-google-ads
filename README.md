@@ -1,10 +1,23 @@
 # 📊 Automação Google Ads -> Supabase -> Dashboard
 
-> **STATUS ATUAL DO PROJETO (2026-10-07):**
-> - ✅ **Banco Supabase:** tabela `gads_dashboard` com ROAS/ROI automáticos, 89 dias de dados (08/07→06/10), integridade verificada.
-> - ✅ **Google Ads Script:** `google_ads_script.js` autorizado e executado na conta `ecommerce@neurosaber.com.br`.
-> - ✅ **Dashboard standalone:** [dashboard.html](./dashboard.html) lê o Supabase direto via REST (sem Lovable).
-> - ⏳ **Pendente:** confirmar **Frequência Diária 03:00** em Ferramentas → Scripts no Google Ads (a execução de 07/10 não ocorreu).
+> **STATUS ATUAL DO PROJETO (2026-10-19):**
+> - ✅ **Supabase** (ref `bbitajwmcapohixocavn`): `gads_dashboard` (dados de 08/07→19/10) + `shopify_daily` (vendas diárias da Shopify). ROAS/ROI calculados automaticamente.
+> - ✅ **Dashboard no ar:** https://claudemir-lab.github.io/dashboard-google-ads/dashboard.html (GitHub Pages, branch `master`).
+> - ✅ **Google Ads Script:** `google_ads_script.js` executado na conta (última carga 19/10, 90 dias). `gads_dashboard` atualizado até 19/10.
+> - ✅ **GitHub Actions:** `keepalive.yml` (mantém o Supabase ativo / evita pausa no plano Free) e `shopify-sync.yml` (sync diário Shopify→Supabase).
+> - ⏳ **Pendente:** confirmar **Frequência Diária** do `google_ads_script.js` no Google Ads (03:00–04:00).
+> - 📌 **Conversões do Ads = 0 depois de 05/10 é CORRETO** — não houve venda pelo **Ads pago**; os pedidos "Google" recentes da Shopify são de **busca orgânica** (sem UTM).
+
+---
+
+## 🔜 Próximos ajustes (roadmap / memória)
+
+> Detalhes completos no `AJUSTES.md` (local, não versionado).
+
+1. **v2 — "Shopify × Google Ads (caixa real da loja)":** o bloco foi **removido do dashboard v1** por decisão do usuário (19/10). Na **v2**, reinserir a seção "Shopify × Google Ads" (cards, tabela diária e linha "Receita Shopify" no gráfico). Os dados (`shopify_daily`) e o sync **já estão prontos e rodando** — o código da versão antiga está no commit `18e080d` (merge da branch `etapa-2-shopify`).
+2. **Confirmar agendamento diário** do `google_ads_script.js` no Google Ads (Frequência: Diária, 03:00–04:00).
+3. **(Opcional) Merchant Center / listagem gratuita:** validar depois (hoje sem fonte de conversão → R$ 0,00).
+4. **Branches:** `master` = dashboard v1 (sem o bloco Shopify); `etapa-2-shopify` = versão com o bloco (referência para a v2).
 
 ---
 
