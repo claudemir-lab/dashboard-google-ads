@@ -1,0 +1,45 @@
+name: Shopify -> Supabase
+
+# Sincroniza diariamente as vendas reais da Shopify para a tabela shopify_daily
+# do Supabase (reagrega os ultimos DAYS_BACK dias, incluindo hoje e ontem).
+# Tambem renova o agendamento para nao ser desativado apos 60 dias sem atividade.
+on:
+  schedule:
+    # Todos os dias as 09:00 UTC (06:00 America/Sao_Paulo)
+    - cron: '0 9 * * *'
+  workflow_dispatch:
+
+permissions:
+  actions: write   # permite reativar o proprio workflow (reset dos 60 dias)
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Renovar agendamentos (evita desativacao em 60 dias)
+        if: ${{ github.event_name == 'schedule' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api -X PUT "repos/${{ github.repository }}/actions/workflows/shopify-sync.yml/enable"
+          gh api -X PUT "repos/${{ github.repository }}/actions/workflows/keepalive.yml/enable"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Shopify -> Supabase
+        env:
+          SHOPIFY_STORE: ${{ secrets.SHOPIFY_STORE }}
+          SHOPIFY_CLIENT_ID: ${{ secrets.SHOPIFY_CLIENT_ID }}
+          SHOPIFY_CLIENT_SECRET: ${{ secrets.SHOPIFY_CLIENT_SECRET }}
+          SHOPIFY_TZ: America/Sao_Paulo
+          DAYS_BACK: '90'
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: node shopify_daily_sync.js
